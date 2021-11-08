@@ -33,8 +33,8 @@ os.makedirs("saved_models", exist_ok=True)
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--epoch", type=int, default=0, help="epoch to start training from")
-parser.add_argument("--n_epochs", type=int, default=50, help="number of epochs of training")
-parser.add_argument("--dataset_name", type=str, default="img_align_celeba", help="name of the dataset")
+parser.add_argument("--n_epochs", type=int, default=2, help="number of epochs of training")
+parser.add_argument("--dataset_name", type=str, default="img_hr", help="name of the dataset")
 parser.add_argument("--batch_size", type=int, default=4, help="size of the batches")
 parser.add_argument("--lr", type=float, default=0.0002, help="adam: learning rate")
 parser.add_argument("--b1", type=float, default=0.5, help="adam: decay of first order momentum of gradient")
@@ -44,7 +44,7 @@ parser.add_argument("--n_cpu", type=int, default=8, help="number of cpu threads 
 parser.add_argument("--hr_height", type=int, default=256, help="high res. image height")
 parser.add_argument("--hr_width", type=int, default=256, help="high res. image width")
 parser.add_argument("--channels", type=int, default=1, help="number of image channels")
-parser.add_argument("--sample_interval", type=int, default=100, help="interval between saving image samples")
+parser.add_argument("--sample_interval", type=int, default=5, help="interval between saving image samples")
 parser.add_argument("--checkpoint_interval", type=int, default=-1, help="interval between model checkpoints")
 opt = parser.parse_args()
 print(opt)
@@ -84,7 +84,8 @@ optimizer_D = torch.optim.Adam(discriminator.parameters(), lr=opt.lr, betas=(opt
 Tensor = torch.cuda.FloatTensor if cuda else torch.Tensor
 
 dataloader = DataLoader(
-    ImageDataset("../../data/%s" % opt.dataset_name, hr_shape=hr_shape),
+    #ImageDataset("../../data/%s" % opt.dataset_name, hr_shape=hr_shape),
+    ImageDataset("../../data/", hr_shape=hr_shape),
     batch_size=opt.batch_size,
     shuffle=True,
     num_workers=opt.n_cpu,
@@ -122,7 +123,9 @@ for epoch in range(opt.epoch, opt.n_epochs):
         gen_features = feature_extractor(torch.cat((gen_hr,gen_hr,gen_hr),1))
     #    real_features = feature_extractor(imgs_hr)
         real_features = feature_extractor(torch.cat((imgs_hr,imgs_hr,imgs_hr),1))
-        loss_content = criterion_content(gen_features, real_features.detach())
+        #loss_content = criterion_content(gen_features, real_features.detach())
+        loss_content = criterion_content(gen_hr, imgs_hr.detach()) + criterion_content(gen_features, real_features.detach())
+
 
         # Total loss
         loss_G = loss_content + 1e-3 * loss_GAN
@@ -161,8 +164,10 @@ for epoch in range(opt.epoch, opt.n_epochs):
             imgs_lr = nn.functional.interpolate(imgs_lr, scale_factor=4)
             gen_hr = make_grid(gen_hr, nrow=1, normalize=True)
             imgs_lr = make_grid(imgs_lr, nrow=1, normalize=True)
-            img_grid = torch.cat((imgs_lr, gen_hr), -1)
+            imgs_hr = make_grid(imgs_hr, nrow=1,normalize=True)
+            img_grid = torch.cat((imgs_lr, gen_hr, imgs_hr), -1)
             save_image(img_grid, "images/%d.png" % batches_done, normalize=False)
+            # print("batch_done:%d\n" %batches_done)
 
     if opt.checkpoint_interval != -1 and epoch % opt.checkpoint_interval == 0:
         # Save model checkpoints
